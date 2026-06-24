@@ -1,0 +1,27 @@
+# ESP-IDF Build artifacts
+**/build/
+**/sdkconfig.old
+
+# Local configurations (keep base configs, ignore local generated ones if desired, 
+# but at least ignore local backup configurations)
+# Note: sdkconfig can be committed, but sdkconfig.old should be ignored.
+
+# ESP-IDF Managed components (should not be committed because idf.py will auto-download them based on idf_component.yml)
+**/managed_components/
+**/dependencies.lock
+
+# Python virtual environments & toolchains
+**/.espressif/
+**/python_env/
+**/*.pyc
+
+# Giant ESP-IDF SDK folder (Must ignore because this is the framework itself, not your code!)
+esp-idf/
+
+# IDE configurations
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

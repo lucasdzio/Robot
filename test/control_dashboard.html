@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROB AI Control Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- MQTT.js Library -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #060814;
+            --card-bg: rgba(16, 22, 38, 0.45);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.35);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.35);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.45);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            
+            /* AI Severity colors */
+            --ai-normal: #10b981;
+            --ai-warning: #f59e0b;
+            --ai-danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(239, 68, 68, 0.08) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            overflow-x: hidden;
+            transition: background-color 0.5s ease;
+        }
+
+        /* Critical alert background pulse */
+        body.critical-alarm {
+            background-color: #1a0505;
+            background-image: radial-gradient(circle, rgba(239, 68, 68, 0.25) 0%, transparent 70%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f3f4f6 30%, #9ca3af 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .card.alarm-card {
+            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.2);
+        }
+
+        /* Statuses display */
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .status-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .status-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-value {
+            font-size: 15px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background-color: var(--success);
+            box-shadow: 0 0 12px var(--success);
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        .dot.error {
+            background-color: var(--danger);
+            box-shadow: 0 0 12px var(--danger);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            100% { transform: scale(1.1); opacity: 1; }
+        }
+
+        /* AI Monitoring Panel */
+        .ai-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+        }
+
+        .ai-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 100%;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 10px;
+        }
+
+        /* AI Gauge display */
+        .gauge-container {
+            position: relative;
+            width: 160px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        .gauge-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.06);
+            stroke-width: 12;
+            stroke-linecap: round;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke: var(--success);
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 220; /* Circumference of semi-circle (2*pi*r / 2) with r=70 */
+            stroke-dashoffset: 220; /* 220 means 0%, 0 means 100% */
+            transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s ease;
+        }
+
+        .gauge-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .gauge-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        /* AI State alert banner */
+        .ai-banner {
+            width: 100%;
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--success);
+            transition: all 0.3s ease;
+        }
+
+        .ai-banner.alarm {
+            background-color: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #ff6b6b;
+            animation: pulse-danger-border 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-danger-border {
+            0% { border-color: rgba(239, 68, 68, 0.2); }
+            100% { border-color: rgba(239, 68, 68, 0.6); }
+        }
+
+        /* Injection Controls */
+        .inject-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .btn-inject {
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-inject:active {
+            transform: scale(0.96);
+        }
+
+        .btn-anomaly:hover, .btn-anomaly:active {
+            border-color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+            color: #ff6b6b;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+        }
+
+        .btn-normal:hover, .btn-normal:active {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+            color: #51cf66;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Joystick Button Layout */
+        .joystick-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .btn-ctrl {
+            height: 70px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+            color: var(--text-main);
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-ctrl:active {
+            transform: scale(0.95);
+        }
+
+        .btn-left:hover, .btn-left:active, .btn-right:hover, .btn-right:active {
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .btn-stop {
+            grid-column: span 2;
+            height: 60px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .btn-stop:hover, .btn-stop:active {
+            border-color: var(--danger);
+            box-shadow: 0 0 15px var(--danger-glow);
+            background: rgba(239, 68, 68, 0.12);
+            color: #ff6b6b;
+        }
+
+        /* Activity Log */
+        .log-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .log-clear {
+            font-size: 11px;
+            color: var(--primary);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-weight: 600;
+        }
+
+        .log-container {
+            height: 100px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 10px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .log-item {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+        }
+
+        .log-time {
+            color: #555e70;
+            margin-right: 6px;
+        }
+
+        .log-msg-tx {
+            color: #3b82f6;
+        }
+
+        .log-msg-rx {
+            color: #10b981;
+        }
+
+        .log-msg-warn {
+            color: #f59e0b;
+        }
+
+        .log-msg-danger {
+            color: #ef4444;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <header>
+            <h1>ROB AI DASHBOARD</h1>
+            <p>TinyML Autoencoder Anomaly Detection</p>
+        </header>
+
+        <!-- Statuses -->
+        <div class="card status-grid">
+            <div class="status-box">
+                <span class="status-label">Broker Link</span>
+                <span class="status-value">
+                    <span id="broker-dot" class="dot"></span>
+                    <span id="broker-status">Connecting</span>
+                </span>
+            </div>
+            <div class="status-box">
+                <span class="status-label">ESP32 Device</span>
+                <span class="status-value">
+                    <span id="device-dot" class="dot"></span>
+                    <span id="device-status">Offline</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- AI Monitoring Panel -->
+        <div id="ai-card" class="card ai-panel">
+            <h2 class="ai-title">Giám Sát Tiny AI (Mô hình Autoencoder)</h2>
+            
+            <div class="gauge-container">
+                <svg class="gauge-svg">
+                    <path class="gauge-bg" d="M 15,90 A 70,70 0 0,1 145,90"></path>
+                    <path id="gauge-fill" class="gauge-fill" d="M 15,90 A 70,70 0 0,1 145,90"></path>
+                </svg>
+                <div id="gauge-val" class="gauge-value">0.000</div>
+                <div class="gauge-label">Sai số MSE</div>
+            </div>
+
+            <div id="ai-banner" class="ai-banner">Trạng thái: Hoạt động bình thường</div>
+            
+            <div class="inject-grid">
+                <button class="btn-inject btn-anomaly" onclick="sendCmd('anomaly')">🚨 Bơm Lỗi AI</button>
+                <button class="btn-inject btn-normal" onclick="sendCmd('normal')">✅ Bình Thường</button>
+            </div>
+        </div>
+
+        <!-- Directional Controller -->
+        <div class="card control-panel">
+            <div class="joystick-grid">
+                <button class="btn-ctrl btn-left" onclick="sendCmd('left')">⬅️</button>
+                <button class="btn-ctrl btn-right" onclick="sendCmd('right')">➡️</button>
+                <button class="btn-ctrl btn-stop" onclick="sendCmd('stop')">🛑 STOP</button>
+            </div>
+        </div>
+
+        <!-- Logs Container -->
+        <div class="card log-section">
+            <div class="log-header">
+                <span class="log-title">Nhật Ký Sự Kiện</span>
+                <button class="log-clear" onclick="clearLogs()">Xóa</button>
+            </div>
+            <div id="log-container" class="log-container">
+                <div class="log-item" style="color: #555e70;">Chờ kết nối Broker...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const SUB_TOPIC = "robot/status/letien";
+        const PUB_TOPIC = "robot/control/letien";
+        
+        const brokerStatusText = document.getElementById('broker-status');
+        const brokerDot = document.getElementById('broker-dot');
+        const deviceStatusText = document.getElementById('device-status');
+        const deviceDot = document.getElementById('device-dot');
+        
+        const gaugeFill = document.getElementById('gauge-fill');
+        const gaugeVal = document.getElementById('gauge-val');
+        const aiBanner = document.getElementById('ai-banner');
+        const aiCard = document.getElementById('ai-card');
+        const logContainer = document.getElementById('log-container');
+
+        let deviceOfflineTimer = null;
+
+        // Establish secure MQTT Websocket connection (port 8884)
+        const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
+        writeLog("Đang kết nối đến máy chủ Broker...", "info");
+        
+        const client = mqtt.connect(brokerUrl, {
+            clean: true,
+            connectTimeout: 4000,
+            clientId: 'ai_dashboard_' + Math.random().toString(16).substring(2, 8)
+        });
+
+        client.on('connect', () => {
+            brokerStatusText.textContent = "Connected";
+            brokerDot.className = "dot active";
+            writeLog("Kết nối máy chủ thành công!", "rx");
+            
+            client.subscribe(SUB_TOPIC, (err) => {
+                if (!err) {
+                    writeLog("Đã Subscribe thành công: " + SUB_TOPIC, "info");
+                }
+            });
+        });
+
+        client.on('error', (err) => {
+            brokerStatusText.textContent = "Error";
+            brokerDot.className = "dot error";
+            writeLog("Lỗi kết nối máy chủ!", "error");
+        });
+
+        client.on('offline', () => {
+            brokerStatusText.textContent = "Offline";
+            brokerDot.className = "dot error";
+            writeLog("Mất kết nối Internet!", "error");
+        });
+
+        // Triggered when a status payload is received from the ESP32-C3
+        client.on('message', (topic, message) => {
+            const payload = message.toString();
+            
+            if (topic === SUB_TOPIC) {
+                // Heartbeat check
+                deviceStatusText.textContent = "Online";
+                deviceDot.className = "dot active";
+
+                if (deviceOfflineTimer) clearTimeout(deviceOfflineTimer);
+                deviceOfflineTimer = setTimeout(() => {
+                    deviceStatusText.textContent = "Offline";
+                    deviceDot.className = "dot";
+                    writeLog("Mất liên lạc thiết bị (Timeout)", "info");
+                }, 8000);
+
+                try {
+                    const data = JSON.parse(payload);
+                    if (data.status === "online") {
+                        writeLog("Nhận tín hiệu kết nối thiết bị", "info");
+                        return;
+                    }
+                    
+                    const mse = parseFloat(data.mse);
+                    const isAnomaly = data.anomaly;
+
+                    // Update UI Gauge
+                    updateGauge(mse, isAnomaly);
+                } catch(e) {
+                    // Raw message format compatibility
+                    writeLog(`Nhận tin thô: ${payload}`, "info");
+                }
+            }
+        });
+
+        // Update visual elements based on AI anomaly score
+        function updateGauge(mse, isAnomaly) {
+            gaugeVal.textContent = mse.toFixed(4);
+
+            // Compute dashoffset (0 is full gauge / 100%, 220 is empty / 0%)
+            // We map MSE from range 0.0 -> 0.8 to 0% -> 100%
+            const maxMse = 0.8;
+            const percent = Math.min(1.0, mse / maxMse);
+            const offset = 220 - (percent * 220);
+            gaugeFill.style.strokeDashoffset = offset;
+
+            if (isAnomaly) {
+                // Set Warning styling
+                gaugeFill.style.stroke = "var(--ai-danger)";
+                aiBanner.textContent = "CẢNH BÁO: Rung lắc Động cơ Bất thường!";
+                aiBanner.className = "ai-banner alarm";
+                aiCard.className = "card ai-panel alarm-card";
+                document.body.className = "critical-alarm";
+                
+                writeLog(`⚠️ [AI Cảnh Báo] Rung lắc bất thường! Sai số MSE: ${mse.toFixed(4)}`, "danger");
+
+                if (navigator.vibrate) {
+                    navigator.vibrate([200, 100, 200]);
+                }
+            } else {
+                // Set Normal styling
+                gaugeFill.style.stroke = "var(--ai-normal)";
+                aiBanner.textContent = "Trạng thái: Hoạt động bình thường";
+                aiBanner.className = "ai-banner";
+                aiCard.className = "card ai-panel";
+                document.body.className = "";
+                
+                writeLog(`[AI] Đo lường bình thường. Sai số MSE: ${mse.toFixed(4)}`, "rx");
+            }
+        }
+
+        // Send Command to ESP32-C3
+        function sendCmd(action) {
+            if (!client.connected) {
+                writeLog("Lỗi: Chưa kết nối máy chủ!", "error");
+                return;
+            }
+            client.publish(PUB_TOPIC, action);
+            
+            if (action === 'anomaly') {
+                writeLog("Gửi lệnh: Yêu cầu BƠM LỖI RUNG LẮC", "warn");
+            } else if (action === 'normal') {
+                writeLog("Gửi lệnh: Đưa thiết bị về bình thường", "info");
+            } else {
+                writeLog(`Gửi lệnh điều hướng [${action}]`, "tx");
+            }
+
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
+        function writeLog(text, type) {
+            const time = new Date().toLocaleTimeString();
+            let colorClass = "log-msg-info";
+            if (type === "tx") colorClass = "log-msg-tx";
+            if (type === "rx") colorClass = "log-msg-rx";
+            if (type === "warn") colorClass = "log-msg-warn";
+            if (type === "danger") colorClass = "log-msg-danger";
+
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            
+            let colorStyle = "";
+            if (type === 'error') colorStyle = "style='color: #ef4444;'";
+            
+            item.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="${colorClass}" ${colorStyle}>${text}</span>
+            `;
+            logContainer.appendChild(item);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLogs() {
+            logContainer.innerHTML = '<div class="log-item" style="color: #555e70;">Sạch nhật ký.</div>';
+        }
+    </script>
+
+</body>
+</html>

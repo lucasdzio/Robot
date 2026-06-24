@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROB Remote Control Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- MQTT.js Library -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #080b11;
+            --card-bg: rgba(22, 28, 45, 0.4);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.4);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Header block */
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f3f4f6 30%, #9ca3af 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        /* Glass Card Base */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Statuses display */
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .status-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .status-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-value {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background-color: var(--success);
+            box-shadow: 0 0 12px var(--success);
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        .dot.error {
+            background-color: var(--danger);
+            box-shadow: 0 0 12px var(--danger);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            100% { transform: scale(1.1); opacity: 1; }
+        }
+
+        /* Control Panel */
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .panel-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+            width: 100%;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 12px;
+        }
+
+        /* Joystick Button Layout */
+        .joystick-grid {
+            display: grid;
+            grid-template-columns: 100px 100px;
+            gap: 20px;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        .btn-ctrl {
+            width: 100px;
+            height: 100px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+            color: var(--text-main);
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-ctrl:active {
+            transform: scale(0.92);
+        }
+
+        .btn-left:hover, .btn-left:active {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .btn-right:hover, .btn-right:active {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .btn-stop {
+            grid-column: span 2;
+            width: 220px;
+            height: 80px;
+            border-radius: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .btn-stop:hover, .btn-stop:active {
+            border-color: var(--danger);
+            box-shadow: 0 0 25px var(--danger-glow);
+            background: rgba(239, 68, 68, 0.15);
+            color: #ff6b6b;
+        }
+
+        /* Activity Log */
+        .log-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .log-clear {
+            font-size: 12px;
+            color: var(--primary);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-weight: 600;
+        }
+
+        .log-container {
+            height: 120px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 12px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-item {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            padding-bottom: 4px;
+        }
+
+        .log-time {
+            color: #6b7280;
+        }
+
+        .log-msg-tx {
+            color: #3b82f6;
+        }
+
+        .log-msg-rx {
+            color: #10b981;
+        }
+
+        /* Feedback vibration simulation on tap */
+        .vibrating {
+            animation: shake 0.15s linear 2;
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            30% { transform: translate(-3px, 0px) rotate(1deg); }
+            50% { transform: translate(3px, 2px) rotate(0deg); }
+            70% { transform: translate(-1px, 1px) rotate(-1deg); }
+            90% { transform: translate(2px, 1px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(0deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <header>
+            <h1>ROB CONTROLLER</h1>
+            <p>Điều Khiển Động Cơ Qua MQTT</p>
+        </header>
+
+        <!-- Status Box -->
+        <div class="card status-grid">
+            <div class="status-box">
+                <span class="status-label">Broker Server</span>
+                <span class="status-value">
+                    <span id="broker-dot" class="dot"></span>
+                    <span id="broker-status">Connecting</span>
+                </span>
+            </div>
+            <div class="status-box">
+                <span class="status-label">ESP32 Device</span>
+                <span class="status-value">
+                    <span id="device-dot" class="dot"></span>
+                    <span id="device-status">Offline</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Controller Box -->
+        <div class="card control-panel">
+            <h2 class="panel-title">BẢNG ĐIỀU HƯỚNG</h2>
+            
+            <div class="joystick-grid">
+                <button class="btn-ctrl btn-left" onclick="sendCmd('left')">⬅️</button>
+                <button class="btn-ctrl btn-right" onclick="sendCmd('right')">➡️</button>
+                <button class="btn-ctrl btn-stop" onclick="sendCmd('stop')">🛑 STOP</button>
+            </div>
+        </div>
+
+        <!-- Logging Box -->
+        <div class="card log-section">
+            <div class="log-header">
+                <span class="log-title">Lịch Sử Lệnh</span>
+                <button class="log-clear" onclick="clearLogs()">Xóa</button>
+            </div>
+            <div id="log-container" class="log-container">
+                <div class="log-item" style="color: #6b7280;">Chờ kết nối máy chủ...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const SUB_TOPIC = "robot/status/letien";
+        const PUB_TOPIC = "robot/control/letien";
+        
+        const brokerStatusText = document.getElementById('broker-status');
+        const brokerDot = document.getElementById('broker-dot');
+        const deviceStatusText = document.getElementById('device-status');
+        const deviceDot = document.getElementById('device-dot');
+        const logContainer = document.getElementById('log-container');
+
+        let deviceOfflineTimer = null;
+
+        // Connect to HiveMQ Public Broker via Secure WebSockets (port 8884)
+        const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
+        
+        writeLog("Kết nối máy chủ: broker.hivemq.com...", "info");
+        
+        const client = mqtt.connect(brokerUrl, {
+            clean: true,
+            connectTimeout: 4000,
+            clientId: 'web_dashboard_' + Math.random().toString(16).substring(2, 8)
+        });
+
+        client.on('connect', () => {
+            brokerStatusText.textContent = "Connected";
+            brokerDot.className = "dot active";
+            writeLog("Kết nối broker thành công!", "rx");
+            
+            // Subscribe to device feedback
+            client.subscribe(SUB_TOPIC, (err) => {
+                if (!err) {
+                    writeLog("Đã subscribe topic: " + SUB_TOPIC, "info");
+                }
+            });
+        });
+
+        client.on('error', (err) => {
+            console.error('MQTT Error: ', err);
+            brokerStatusText.textContent = "Error";
+            brokerDot.className = "dot error";
+            writeLog("Lỗi kết nối broker!", "error");
+        });
+
+        client.on('offline', () => {
+            brokerStatusText.textContent = "Offline";
+            brokerDot.className = "dot error";
+            writeLog("Mất kết nối máy chủ!", "error");
+        });
+
+        // Triggered when a message is received
+        client.on('message', (topic, message) => {
+            const payload = message.toString();
+            writeLog(`Nhận tin [${topic}]: ${payload}`, "rx");
+
+            if (topic === SUB_TOPIC) {
+                // Device sent status update
+                deviceStatusText.textContent = "Online";
+                deviceDot.className = "dot active";
+
+                // Vibrate dashboard to simulate real mechanical feedback
+                document.querySelector('.control-panel').classList.add('vibrating');
+                setTimeout(() => {
+                    document.querySelector('.control-panel').classList.remove('vibrating');
+                }, 150);
+
+                // Set a timer to set device offline if no heartbeats or status received for 20 seconds
+                if (deviceOfflineTimer) clearTimeout(deviceOfflineTimer);
+                deviceOfflineTimer = setTimeout(() => {
+                    deviceStatusText.textContent = "Offline";
+                    deviceDot.className = "dot";
+                    writeLog("Thiết bị mất tín hiệu (Timeout)", "info");
+                }, 20000);
+            }
+        });
+
+        // Function to send command
+        function sendCmd(action) {
+            if (!client.connected) {
+                writeLog("Lỗi: Chưa kết nối máy chủ!", "error");
+                return;
+            }
+            client.publish(PUB_TOPIC, action);
+            writeLog(`Gửi lệnh [${action}] đến ${PUB_TOPIC}`, "tx");
+            
+            // Haptic vibration (on supporting mobile browsers)
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
+        // Helper to write logs in viewport
+        function writeLog(text, type) {
+            const time = new Date().toLocaleTimeString();
+            let colorClass = "log-msg-info";
+            if (type === "tx") colorClass = "log-msg-tx";
+            if (type === "rx") colorClass = "log-msg-rx";
+            if (type === "error") colorClass = "log-msg-rx"; // red / critical
+
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            
+            let colorStyle = "";
+            if (type === 'error') colorStyle = "style='color: #ef4444;'";
+            
+            item.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="${colorClass}" ${colorStyle}>${text}</span>
+            `;
+            logContainer.appendChild(item);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLogs() {
+            logContainer.innerHTML = '<div class="log-item" style="color: #6b7280;">Log cleared.</div>';
+        }
+    </script>
+
+</body>
+</html>
