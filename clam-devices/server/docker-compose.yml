@@ -1,0 +1,65 @@
+# Cum dich vu cho du an Claim Device:
+#   - emqx     : MQTT broker
+#   - postgres : co so du lieu (users/devices/device_users/share_invites)
+#   - backend  : API Python FastAPI (claim/share/auth)
+#
+# Cach dung:
+#   cd ~/robot/Robot/clam-devices/server
+#   docker compose up -d          # chay ca cum
+#   docker compose logs -f backend
+#   docker compose down
+
+services:
+  emqx:
+    image: emqx/emqx:latest
+    container_name: emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"     # MQTT
+      - "8883:8883"     # MQTT/TLS
+      - "8083:8083"     # MQTT/WebSocket
+      - "18083:18083"   # Dashboard
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    environment:
+      EMQX_NODE__NAME: "emqx@127.0.0.1"
+
+  postgres:
+    image: postgres:16
+    container_name: claim_postgres
+    restart: unless-stopped
+    ports:
+      - "5444:5432"     # may that:5444 -> trong container:5432 (tranh trung cong)
+    environment:
+      POSTGRES_USER: claim
+      POSTGRES_PASSWORD: claim123
+      POSTGRES_DB: claimdb
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claim -d claimdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: claim_backend
+    restart: unless-stopped
+    ports:
+      - "9009:8000"     # may that:9009 -> trong container:8000 (tranh trung cong)
+    volumes:
+      # Mount trang web -> sua file la thay ngay, khong can build lai
+      - ./backend/app/static:/app/app/static
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://claim:claim123@postgres:5432/claimdb"
+      JWT_SECRET: "doi-thanh-chuoi-bi-mat-cua-rieng-anh"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  emqx_data:
+  emqx_log:
+  pg_data:

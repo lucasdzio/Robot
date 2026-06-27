@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claim Device App</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#f0f2f5;margin:0;padding:16px;color:#222}
+  .wrap{max-width:520px;margin:auto}
+  h2{text-align:center}
+  .card{background:#fff;border-radius:14px;padding:18px;margin:12px 0;box-shadow:0 2px 8px #0001}
+  .card h3{margin:0 0 10px;font-size:16px}
+  input{width:100%;box-sizing:border-box;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:8px;font-size:15px}
+  button{padding:9px 16px;margin:4px 4px 4px 0;border:0;border-radius:8px;background:#1565c0;color:#fff;font-size:15px;cursor:pointer}
+  button.gray{background:#666}button.green{background:#2e7d32}button.small{padding:5px 10px;font-size:13px}
+  .muted{color:#777;font-size:13px}
+  .dev{border:1px solid #eee;border-radius:10px;padding:10px;margin:8px 0}
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;background:#e3f2fd;color:#1565c0}
+  .tag.owner{background:#e8f5e9;color:#2e7d32}
+  pre{background:#f7f7f7;padding:8px;border-radius:8px;white-space:pre-wrap;word-break:break-all;font-size:13px}
+  .hidden{display:none}
+  #status{position:sticky;top:0;z-index:10;margin:0 0 10px;padding:12px;border-radius:10px;font-weight:bold;text-align:center}
+  #status.ok{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+  #status.err{background:#ffebee;color:#c62828;border:1px solid #ef9a9a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>🤖 Claim Device App</h2>
+  <div id="status" class="hidden"></div>
+
+  <!-- ====== ĐĂNG NHẬP / ĐĂNG KÝ ====== -->
+  <div class="card" id="authCard">
+    <h3>Đăng nhập / Đăng ký</h3>
+    <input id="email" placeholder="Email" value="owner@test.vn">
+    <input id="password" type="password" placeholder="Mật khẩu" value="123456">
+    <button onclick="register()">Đăng ký</button>
+    <button class="gray" onclick="login()">Đăng nhập</button>
+  </div>
+
+  <!-- ====== SAU KHI ĐĂNG NHẬP ====== -->
+  <div id="app" class="hidden">
+    <div class="card">
+      <h3>Xin chào 👋</h3>
+      <span class="muted" id="whoami"></span>
+      <button class="gray small" style="float:right" onclick="logout()">Đăng xuất</button>
+    </div>
+
+    <div class="card">
+      <h3>1) Giả lập robot báo danh tính (register)</h3>
+      <p class="muted">Bình thường robot tự làm. Ở đây bấm tay để có thiết bị mà claim.</p>
+      <input id="r_did" placeholder="device_id" value="ESP32C3_DEMO01">
+      <input id="r_code" placeholder="claim_code" value="ABC123">
+      <button onclick="registerDevice()">Robot register</button>
+    </div>
+
+    <div class="card">
+      <h3>2) Claim thiết bị</h3>
+      <input id="c_did" placeholder="device_id" value="ESP32C3_DEMO01">
+      <input id="c_code" placeholder="claim_code" value="ABC123">
+      <button class="green" onclick="claim()">Claim</button>
+    </div>
+
+    <div class="card">
+      <h3>3) Nhập mã mời (được người khác share)</h3>
+      <input id="inv" placeholder="INV-xxxxxx">
+      <button class="green" onclick="acceptInvite()">Nhận chia sẻ</button>
+    </div>
+
+    <div class="card">
+      <h3>4) Thiết bị của tôi <button class="gray small" style="float:right" onclick="loadDevices()">🔄 Tải lại</button></h3>
+      <div id="devices"></div>
+    </div>
+
+    <div class="card">
+      <h3>Kết quả</h3>
+      <pre id="log">—</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "";              // cùng origin với backend
+let token = localStorage.getItem("token") || "";
+let userId = localStorage.getItem("userId") || "";
+
+function show(obj){
+  // Khung chi tiet o duoi
+  document.getElementById("log").textContent =
+    typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  // Thanh bao trang thai noi bat tren dau (xanh = ok, do = loi)
+  const st = document.getElementById("status");
+  const isErr = obj && typeof obj === "object" && "detail" in obj;
+  st.textContent = isErr ? ("❌ " + obj.detail)
+                         : ("✅ " + (typeof obj === "string" ? obj : "Thành công"));
+  st.className = isErr ? "err" : "ok";
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+async function api(path, method="GET", body=null){
+  const h = {"Content-Type":"application/json"};
+  if(token) h["Authorization"] = "Bearer " + token;
+  const r = await fetch(API + path, {method, headers:h, body: body?JSON.stringify(body):null});
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok) throw data;
+  return data;
+}
+
+function setLoggedIn(){
+  document.getElementById("authCard").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  document.getElementById("whoami").textContent = "user_id = " + userId;
+  loadDevices();
+}
+
+async function register(){
+  try{
+    const d = await api("/auth/register","POST",{email:email.value,password:password.value});
+    token=d.access_token; userId=d.user_id;
+    localStorage.setItem("token",token); localStorage.setItem("userId",userId);
+    show("Đăng ký thành công!"); setLoggedIn();
+  }catch(e){ show(e); }
+}
+async function login(){
+  try{
+    const d = await api("/auth/login","POST",{email:email.value,password:password.value});
+    token=d.access_token; userId=d.user_id;
+    localStorage.setItem("token",token); localStorage.setItem("userId",userId);
+    show("Đăng nhập thành công!"); setLoggedIn();
+  }catch(e){ show(e); }
+}
+function logout(){
+  token=""; userId=""; localStorage.clear();
+  document.getElementById("app").classList.add("hidden");
+  document.getElementById("authCard").classList.remove("hidden");
+}
+
+async function registerDevice(){
+  try{ show(await api("/devices/register","POST",
+    {device_id:r_did.value, claim_code:r_code.value, device_secret:"demo"})); }
+  catch(e){ show(e); }
+}
+async function claim(){
+  try{ const d = await api("/devices/claim","POST",{device_id:c_did.value, claim_code:c_code.value});
+    show(d); loadDevices(); }catch(e){ show(e); }
+}
+async function acceptInvite(){
+  try{ const d = await api("/invites/accept","POST",{invite_code:inv.value});
+    show(d); loadDevices(); }catch(e){ show(e); }
+}
+async function createShare(did){
+  try{ const d = await api("/devices/"+did+"/share","POST");
+    show("Mã mời (gửi cho người khác): " + d.invite_code); }catch(e){ show(e); }
+}
+async function members(did){
+  try{ show(await api("/devices/"+did+"/members")); }catch(e){ show(e); }
+}
+async function loadDevices(){
+  try{
+    const list = await api("/devices");
+    const box = document.getElementById("devices");
+    if(!list.length){ box.innerHTML = '<span class="muted">Chưa có thiết bị nào. Hãy register + claim ở trên.</span>'; return; }
+    box.innerHTML = list.map(d=>{
+      const owner = d.role==="owner";
+      let btns = '<button class="small" onclick="members(\''+d.device_id+'\')">Xem member</button>';
+      if(owner) btns += '<button class="green small" onclick="createShare(\''+d.device_id+'\')">Tạo mã mời</button>';
+      return '<div class="dev"><b>'+d.device_id+'</b> '+
+        '<span class="tag '+(owner?'owner':'')+'">'+d.role+'</span><br>'+btns+'</div>';
+    }).join("");
+  }catch(e){ show(e); }
+}
+
+// Tự vào thẳng nếu đã có token
+if(token){ setLoggedIn(); }
+</script>
+</body>
+</html>
