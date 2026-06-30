@@ -39,6 +39,7 @@ class Device(Base):
     device_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     device_secret: Mapped[str] = mapped_column(String(128), default="")
     claim_code: Mapped[str] = mapped_column(String(16), default="")  # ma de chu nhan may
+    claim_code_expire: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # han claim_code
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     claimed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -50,6 +51,10 @@ class DeviceUser(Base):
     device_id: Mapped[str] = mapped_column(String(64), ForeignKey("devices.device_id"), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     role: Mapped[str] = mapped_column(String(16), default="member")  # owner / member
+    # Han dung quyen (NULL = vinh vien, vd owner). Member duoc share thi co han.
+    expire_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Quyen nay duoc cap boi ma moi nao (de huy ma moi thi xoa dung quyen)
+    via_invite: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 # 4) share_invites: ma moi de share thiet bi (phan SHARE)
@@ -58,8 +63,9 @@ class ShareInvite(Base):
     invite_code: Mapped[str] = mapped_column(String(32), primary_key=True)
     device_id: Mapped[str] = mapped_column(String(64), ForeignKey("devices.device_id"))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    expire_at: Mapped[datetime] = mapped_column(DateTime)
+    expire_at: Mapped[datetime] = mapped_column(DateTime)  # han cua quyen + ma moi
     used: Mapped[bool] = mapped_column(Boolean, default=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)  # owner da huy chua
 
 
 # Tien ich: lay 1 phien lam viec DB cho moi request

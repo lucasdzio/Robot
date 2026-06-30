@@ -48,7 +48,7 @@ static const char *TAG = "identity";
 
 // WiFi nha (STA) de robot len mang, cung mang voi EMQX
 // (Tam thoi gan cung trong code; buoc sau se cho nhap qua web)
-#define STA_SSID    "TTTH"
+#define STA_SSID    "TTTH 2"
 #define STA_PASS    "Trunganhgr@123"
 
 // Dia chi EMQX broker (may chay docker). Chua bat auth -> cho ket noi an danh.
@@ -609,8 +609,10 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();                          // bat dau noi WiFi nha
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t *d = (wifi_event_sta_disconnected_t *)data;
         s_sta_ip.addr = 0;
-        ESP_LOGW(TAG, "WiFi nha roi ket noi -> thu noi lai...");
+        ESP_LOGW(TAG, "WiFi nha roi ket noi (ssid='%s' reason=%d) -> thu noi lai...",
+                 g_wifi_ssid, d ? d->reason : -1);
         esp_wifi_connect();                          // tu dong thu lai
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;

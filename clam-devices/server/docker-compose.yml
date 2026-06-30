@@ -55,6 +55,11 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg2://claim:claim123@postgres:5432/claimdb"
       JWT_SECRET: "doi-thanh-chuoi-bi-mat-cua-rieng-anh"
+      # Broker MQTTS de gui lenh dieu khien (doi creds dung khi co)
+      MQTTS_HOST: "mqtt.runagent.io"
+      MQTTS_PORT: "8883"
+      MQTTS_USER: "admin"
+      MQTTS_PASS: "CHANGE_ME_EMQX_DASHBOARD_PASSWORD"
     depends_on:
       postgres:
         condition: service_healthy

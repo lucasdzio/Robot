@@ -42,9 +42,15 @@ class DeviceOut(BaseModel):
     claimed: bool
     owner_id: int | None = None
     role: str | None = None
+    expire_at: datetime | None = None   # han dieu khien (member), None = vinh vien
 
 
 # ----- Share -----
+class ShareIn(BaseModel):
+    # Owner chon thoi gian cho phep dieu khien (gio). Mac dinh 24h.
+    hours: int = 24
+
+
 class ShareOut(BaseModel):
     invite_code: str
     device_id: str
@@ -55,7 +61,22 @@ class InviteAcceptIn(BaseModel):
     invite_code: str
 
 
+class InviteOut(BaseModel):
+    invite_code: str
+    device_id: str
+    expire_at: datetime
+    used: bool
+    revoked: bool
+
+
 class MemberOut(BaseModel):
     user_id: int
     email: str
     role: str
+    expire_at: datetime | None = None
+
+
+# ----- Control -----
+class ControlIn(BaseModel):
+    # Lenh dieu khien dang JSON tu do, vd {"action":"move","dir":"forward"}
+    command: dict
