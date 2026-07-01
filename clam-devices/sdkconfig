@@ -791,7 +791,7 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=115200
 # Partition Table
 #
 # default:
-CONFIG_PARTITION_TABLE_SINGLE_APP=y
+# CONFIG_PARTITION_TABLE_SINGLE_APP is not set
 # default:
 # CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE is not set
 # default:
@@ -799,11 +799,11 @@ CONFIG_PARTITION_TABLE_SINGLE_APP=y
 # default:
 # CONFIG_PARTITION_TABLE_TWO_OTA_LARGE is not set
 # default:
-# CONFIG_PARTITION_TABLE_CUSTOM is not set
+CONFIG_PARTITION_TABLE_CUSTOM=y
 # default:
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # default:
-CONFIG_PARTITION_TABLE_FILENAME="partitions_singleapp.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 # default:
 CONFIG_PARTITION_TABLE_OFFSET=0x8000
 # default:
@@ -3458,6 +3458,13 @@ CONFIG_WL_SECTOR_SIZE_4096=y
 # default:
 CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
+
+#
+# libsodium
+#
+# default:
+CONFIG_LIBSODIUM_USE_MBEDTLS_SHA=y
+# end of libsodium
 
 #
 # ESP-MQTT Configurations

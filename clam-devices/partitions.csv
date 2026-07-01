@@ -1,0 +1,7 @@
+# Partition table cho ESP32-C3 (flash 2MB).
+# App partition to hon (1.875MB) vi firmware production them TLS + libsodium (Ed25519)
+# + HTTPS client + MQTTS -> bin vuot 1MB cua single-app mac dinh.
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x6000
+phy_init, data, phy,     0xf000,   0x1000
+factory,  app,  factory, 0x10000,  0x1E0000
